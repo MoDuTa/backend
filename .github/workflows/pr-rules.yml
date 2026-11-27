@@ -55,8 +55,13 @@ jobs:
           # base에 아직 스크립트가 없을 때(이 검사를 처음 추가하는 PR)만 PR의 스크립트를 씁니다.
           check="$RUNNER_TEMP/commit-msg"
           git show "$BASE_SHA:.githooks/commit-msg" > "$check" 2>/dev/null || cp .githooks/commit-msg "$check"
+          # 커밋 목록을 못 가져오면 검사 없이 통과하지 않도록 실패 처리합니다.
+          if ! commits="$(git rev-list --no-merges "$BASE_SHA..$HEAD_SHA")"; then
+            echo "::error::검사할 커밋 목록을 가져오지 못했습니다."
+            exit 1
+          fi
           status=0
-          for sha in $(git rev-list --no-merges "$BASE_SHA..$HEAD_SHA"); do
+          for sha in $commits; do
             git log -1 --format=%B "$sha" > "$RUNNER_TEMP/msg"
             if ! bash "$check" "$RUNNER_TEMP/msg"; then
               echo "::error::$(git log -1 --format='%h %s' "$sha")"

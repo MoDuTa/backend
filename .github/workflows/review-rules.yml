@@ -19,6 +19,8 @@ jobs:
       pull-requests: read
     steps:
       - name: 승인 확인
+        # bash로 지정하면 pipefail이 켜져, 리뷰 이력 조회가 중간에 실패해도 통과하지 않습니다.
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
