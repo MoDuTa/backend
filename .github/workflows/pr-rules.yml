@@ -33,3 +33,37 @@ jobs:
             echo "::error::PR 제목은 브랜치와 동일한 [WBS번호] 작업명 형식으로 적어 주세요."
             exit 1
           fi
+  commits:
+    name: 커밋 메시지 형식
+    if: ${{ !(github.base_ref == 'main' && github.head_ref == 'develop') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: 형식 확인
+        env:
+          BRANCH: ${{ github.head_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # 검사 스크립트는 base 브랜치의 것을 씁니다. PR이 스크립트를 고쳐 검사를 통과하지 못하게 하기 위해서입니다.
+          # base에 아직 스크립트가 없을 때(이 검사를 처음 추가하는 PR)만 PR의 스크립트를 씁니다.
+          check="$RUNNER_TEMP/commit-msg"
+          git show "$BASE_SHA:.githooks/commit-msg" > "$check" 2>/dev/null || cp .githooks/commit-msg "$check"
+          status=0
+          for sha in $(git rev-list --no-merges "$BASE_SHA..$HEAD_SHA"); do
+            git log -1 --format=%B "$sha" > "$RUNNER_TEMP/msg"
+            if ! bash "$check" "$RUNNER_TEMP/msg"; then
+              echo "::error::$(git log -1 --format='%h %s' "$sha")"
+              status=1
+            fi
+          done
+          if [[ $status -ne 0 ]]; then
+            echo "::error::형식이 틀린 커밋은 git rebase -i 로 메시지를 고친 뒤 다시 push해 주세요."
+          fi
+          exit $status
