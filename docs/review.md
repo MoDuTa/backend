@@ -1,6 +1,6 @@
 # backend 리뷰 규칙
 
-[공통 협업 규칙](https://github.com/MoDuTa/.github/blob/0cbbc8c62c5b1e0bfc2eb9024738cb1073a381f7/CONTRIBUTING.md)을 따릅니다
+[공통 협업 규칙](https://github.com/MoDuTa/.github/blob/0f73a1af1716771f4b8ea62055ce777ae361db1b/CONTRIBUTING.md)을 따릅니다
 
 - PR 제목은 `feat: 대여 API 추가` 형식으로 작성합니다
 - 작업 중 커밋 메시지는 강제 검사하지 않으며 Squash 결과에 PR 제목을 사용합니다
