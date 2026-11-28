@@ -2,73 +2,30 @@ name: PR 규칙
 on:
   pull_request:
     branches: [develop, main]
-    types: [opened, edited, reopened, synchronize]
+    types: [opened, edited, reopened, synchronize, ready_for_review]
 permissions: {}
+concurrency:
+  group: pr-rules-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
   format:
     name: 브랜치 · PR 제목 형식
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
-      - name: 형식 확인
+      - name: PR 제목 및 대상 확인
         env:
-          BRANCH: ${{ github.head_ref }}
-          BASE: ${{ github.base_ref }}
           TITLE: ${{ github.event.pull_request.title }}
-        run: |
-          if [[ "$BASE" == main && "$BRANCH" == develop ]]; then
-            exit 0
-          fi
-          if [[ "$BASE" != develop ]]; then
-            echo "::error::main 대상 PR은 develop에서 열어 주세요."
-            exit 1
-          fi
-          pattern='^(feat|fix|infra|docs|test|refactor|chore|style)/([0-9]+(\.[0-9]+)*)-[a-z0-9]+(-[a-z0-9]+)*$'
-          if [[ ! "$BRANCH" =~ $pattern ]]; then
-            echo "::error::브랜치 예시: feat/2.3.1-qr-validation"
-            exit 1
-          fi
-          wbs="${BASH_REMATCH[2]}"
-          prefix="[$wbs] "
-          if [[ "$TITLE" != "$prefix"* || ! "${TITLE#"$prefix"}" =~ [^[:space:]] ]]; then
-            echo "::error::PR 제목은 브랜치와 동일한 [WBS번호] 작업명 형식으로 적어 주세요."
-            exit 1
-          fi
-  commits:
-    name: 커밋 메시지 형식
-    if: ${{ !(github.base_ref == 'main' && github.head_ref == 'develop') }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-      - name: 형식 확인
-        env:
+          BASE: ${{ github.base_ref }}
           BRANCH: ${{ github.head_ref }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.event.repository.name }}
+        shell: python
         run: |
-          # 검사 스크립트는 base 브랜치의 것을 씁니다. PR이 스크립트를 고쳐 검사를 통과하지 못하게 하기 위해서입니다.
-          # base에 아직 스크립트가 없을 때(이 검사를 처음 추가하는 PR)만 PR의 스크립트를 씁니다.
-          check="$RUNNER_TEMP/commit-msg"
-          git show "$BASE_SHA:.githooks/commit-msg" > "$check" 2>/dev/null || cp .githooks/commit-msg "$check"
-          # 커밋 목록을 못 가져오면 검사 없이 통과하지 않도록 실패 처리합니다.
-          if ! commits="$(git rev-list --no-merges "$BASE_SHA..$HEAD_SHA")"; then
-            echo "::error::검사할 커밋 목록을 가져오지 못했습니다."
-            exit 1
-          fi
-          status=0
-          for sha in $commits; do
-            git log -1 --format=%B "$sha" > "$RUNNER_TEMP/msg"
-            if ! bash "$check" "$RUNNER_TEMP/msg"; then
-              echo "::error::$(git log -1 --format='%h %s' "$sha")"
-              status=1
-            fi
-          done
-          if [[ $status -ne 0 ]]; then
-            echo "::error::형식이 틀린 커밋은 git rebase -i 로 메시지를 고친 뒤 다시 push해 주세요."
-          fi
-          exit $status
+          import os, re, sys
+          title = os.environ['TITLE']
+          pattern = r'(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|infra)(\([a-zA-Z0-9_./-]+\))?!?: [^\s].*'
+          if not re.fullmatch(pattern, title) or title != title.strip():
+              sys.exit('PR 제목 예시: feat: 자전거 대여 추가 / fix(auth): 만료 처리 수정')
+          if os.environ['REPO'] != '.github' and os.environ['BASE'] == 'main' and os.environ['BRANCH'] != 'develop':
+              sys.exit('서비스의 main 반영은 develop → main PR로 진행합니다')
+          print('PR 제목과 대상 브랜치 확인 완료')
